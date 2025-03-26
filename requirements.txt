@@ -1,0 +1,6 @@
+yfinance
+requests
+tensorflow
+numpy
+scikit-learn
+python-telegram-bot
