@@ -230,9 +230,9 @@ def main():
     # Flask مستقیم اجرا می‌شه
     app.run(host='0.0.0.0', port=8080)
 
-if __name__ == "__main__":
+if __name__ == "__main__()main:
 def main():
-    token = "YOUR_TELEGRAM_BOT_TOKEN" # توکن خودت رو اینجا بذار
+    token = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I" # توکن خودت رو اینجا بذار
     application = Application.builder().token(token).build()
     
     application.add_handler(CommandHandler("start", start))
