@@ -7,6 +7,15 @@ from sklearn.preprocessing import MinMaxScaler
 import random
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from flask import Flask
+from threading import Thread
+
+# وب‌سرور Flask
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "FreedomAI Bot is running!"
 
 # توابع دریافت داده (کوتاه شده برای سرعت)
 def fetch_exchange_rate(base_currency, target_currency="USD"):
@@ -18,7 +27,7 @@ def fetch_exchange_rate(base_currency, target_currency="USD"):
         return 1.0
 
 def fetch_country_data(country):
-    return 0.03, 1000  # فرضی برای تست
+    return 0.03, 1000 # فرضی برای تست
 
 def fetch_yfinance_data(symbol, period="5y", interval="1mo"):
     try:
@@ -186,7 +195,7 @@ def final_financial_freedom(savings, expenses, country="Iran", age=54, risk_tole
               f"Monte Carlo: Avg {avg_years:.1f} years, Success {success_rate:.1f}%\n"
               f"Worst Case (Stress): {stress_worst:,.2f} {data['currency']}\n"
               f"Optimal Portfolio: {opt_portfolio}, Time: {opt_years:.1f} years\n"
-              f"Sensitivity:\n" + "\n".join(f"  {k}: {v:.1f} years" for k, v in sensitivity.items()) + "\n"
+              f"Sensitivity:\n" + "\n".join(f" {k}: {v:.1f} years" for k, v in sensitivity.items()) + "\n"
               f"Suggestion for {target_years} years: Save {savings_needed:,.2f} {data['currency']}\n"
               f"Retirement Age: {age + months/12:.1f}")
     return output
@@ -208,14 +217,18 @@ async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Error: {str(e)}")
 
 def main():
-    # توکن بات رو اینجا بذار
-    token = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I"
+    # توکن باتت رو اینجا بذار
+    token = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I" # توکن خودت رو جایگزین کن
     application = Application.builder().token(token).build()
     
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("calculate", calculate))
     
-    application.run_polling()
+    # polling تو thread جدا
+    Thread(target=application.run_polling).start()
+    
+    # Flask مستقیم اجرا می‌شه
+    app.run(host='0.0.0.0', port=8080)
 
 if __name__ == "__main__":
     main()
