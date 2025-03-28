@@ -61,7 +61,7 @@ async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 # تابع اصلی برای اجرای بات
 def main():
     # توکن بات تلگرام (اینو با توکن خودت جایگزین کن)
-    token = "YOUR_TELEGRAM_BOT_TOKEN"  # توکنی که از BotFather گرفتی رو اینجا بذار
+    token = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I"  # توکنی که از BotFather گرفتی رو اینجا بذار
 
     # ساخت اپلیکیشن تلگرام
     application = Application.builder().token(token).build()
