@@ -231,4 +231,15 @@ def main():
     app.run(host='0.0.0.0', port=8080)
 
 if __name__ == "__main__":
-    main()
+def main():
+    token = "YOUR_TELEGRAM_BOT_TOKEN" # توکن خودت رو اینجا بذار
+    application = Application.builder().token(token).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("calculate", calculate))
+    
+    # مستقیم اجرا می‌کنیم
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Flask تو thread جدا
+    Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
