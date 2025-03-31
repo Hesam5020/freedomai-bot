@@ -1,2 +1,2 @@
-flask[async]
+aiohttp
 python-telegram-bot
