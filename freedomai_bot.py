@@ -6,6 +6,10 @@ import os
 
 app = Flask(__name__)
 
+# Create the Application instance globally
+token = os.getenv("TELEGRAM_TOKEN")
+application = Application.builder().token(token).build()
+
 @app.route('/')
 def home():
     return "Bot is running!"
@@ -71,28 +75,30 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("Please enter valid numbers. Example: /input 10000 500 5")
 
+# Add handlers to the application
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("input", input_data))
+application.add_handler(CommandHandler("input", process_input))
+
+@app.route('/webhook', methods=['POST'])
+async def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    await application.process_update(update)
+    return '', 200
+
 def main():
-    token = os.getenv("TELEGRAM_TOKEN") # Get token from environment variable
-    application = Application.builder().token(token).build()
+    # Get the event loop
+    loop = asyncio.get_event_loop()
     
     # Initialize the application
-    asyncio.run(application.initialize())
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("input", input_data))
-    application.add_handler(CommandHandler("input", process_input))
+    loop.run_until_complete(application.initialize())
     
     # Set up Webhook for Render
     port = int(os.environ.get("PORT", 8080)) # Default port for Render
     webhook_url = "https://freedomai-2025.onrender.com/webhook" # Your Render URL
-    asyncio.run(application.bot.set_webhook(webhook_url))
+    loop.run_until_complete(application.bot.set_webhook(webhook_url))
     
-    @app.route('/webhook', methods=['POST'])
-    def webhook():
-        update = Update.de_json(request.get_json(force=True), application.bot)
-        asyncio.run(application.process_update(update))
-        return '', 200
-    
+    # Run the Flask app
     app.run(host='0.0.0.0', port=port)
 
 if __name__ == "__main__":
