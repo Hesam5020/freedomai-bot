@@ -1,106 +1,75 @@
-from aiohttp import web
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-import asyncio
-import os
+import telegram
+from telegram.ext import Updater, CommandHandler
+import math
 
-# Create the Application instance globally
-token = os.getenv("TELEGRAM_TOKEN")
-application = Application.builder().token(token).build()
+# توکن بات رو اینجا بذارید
+TOKEN = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = (
-        "Hello! I’m your new bot, ready to assist you!\n\n"
-        "Our goal is to help you achieve financial freedom through smart saving and investing. "
-        "Financial freedom means having enough passive income to cover your living expenses "
-        "without relying on active work, giving you the freedom to live life on your terms. "
-        "Suggestions are provided based on the current state of gold, real estate, stock markets, "
-        "cryptocurrency, inflation rates of various countries, and future predictions for these markets.\n\n"
-        "Disclaimer: Please note that I am not a financial advisor. "
-        "The information and calculations provided by this bot are for general guidance only "
-        "and should not be considered professional financial advice. "
-        "For personalized and accurate financial decisions, I strongly recommend consulting "
-        "with a qualified financial advisor to ensure your specific needs and circumstances are addressed.\n\n"
-        "To get started, please use /input to provide your details."
+# تابع خوش‌آمدگویی
+def start(update, context):
+    welcome_message = (
+        "سلام! من بات جدیدت هستم. هدفم رساندن تو به آزادی مالی است.\n"
+        "یعنی تامین هزینه‌های زندگی با درآمد غیرفعال (بدون نیاز به کار کردن) با سرمایه‌گذاری هوشمندانه.\n\n"
+        "⚠️ قبل از انجام هر سرمایه‌گذاری، با مشاور مالی خودتان مشورت کنید و مطالب بات را با شرایط خودتان تنظیم کنید."
     )
-    await update.message.reply_text(message)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=welcome_message)
 
-async def input_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = (
-        "Please provide the following information using /calculate command (in one message, separated by spaces):\n"
-        "1. Your current savings (in your currency)\n"
-        "2. Your monthly expenses (in your currency)\n"
-        "3. Desired time to reach financial freedom (in years)\n\n"
-        "Example: /calculate 10000 500 5"
-    )
-    await update.message.reply_text(message)
+# تابع محاسبه هدف با تورم
+def calculate_target(monthly_expense, years):
+    annual_expense = monthly_expense * 12
+    future_expense = annual_expense * (1 + 0.3) ** years  # تورم 30%
+    target = future_expense / 0.04  # نرخ برداشت 4%
+    return target
 
-async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# تابع محاسبه زمان
+def calculate_years(monthly_saving, target, risk_profile):
+    if risk_profile == "none":
+        rate = 0.19  # میانگین بازدهی (50% مسکن 15% + اجاره، 30% طلا 20%、20% بیت‌کوین 30%)
+    elif risk_profile == "low":
+        rate = 0.20  # میانگین (40% مسکن، 40% طلا، 20% بیت‌کوین)
+    else:  # high
+        rate = 0.22  # میانگین (30% مسکن، 30% طلا، 40% بیت‌کوین)
+
+    total_saving = 0
+    years = 0
+    while total_saving < target:
+        total_saving = monthly_saving * 12 * ((1 + rate) ** years - 1) / rate
+        years += 1
+    return years - 1
+
+# تابع اصلی بات
+def calculate(update, context):
     try:
         args = context.args
-        if len(args) != 3:
-            await update.message.reply_text("Please provide exactly 3 values: savings, expenses, and years. Example: /calculate 10000 500 5")
-            return
-        
-        savings = float(args[0])
-        expenses = float(args[1])
-        years = float(args[2])
+        monthly_saving = int(args[0])  # پس‌انداز ماهانه
+        monthly_expense = int(args[1])  # هزینه ماهانه
+        risk_profile = args[3] if len(args) > 3 else "low"  # سطح ریسک (پیش‌فرض: کم‌ریسک)
 
-        if savings < 0 or expenses < 0 or years <= 0:
-            await update.message.reply_text("Values must be positive (savings and expenses can be 0, but years must be greater than 0).")
-            return
+        # محاسبه هدف با فرض حداکثر زمان
+        target = calculate_target(monthly_expense, 20)
+        years = calculate_years(monthly_saving, target, risk_profile)
 
-        # Simple calculation: How much passive income is needed annually
-        annual_expenses = expenses * 12
-        total_needed = annual_expenses * 25 # Based on 4% withdrawal rule
-        additional_needed = total_needed - savings
-        monthly_saving_needed = additional_needed / (years * 12)
+        # سبد سرمایه‌گذاری
+        if risk_profile == "none":
+            portfolio = "۵۰٪ مسکن، ۳۰٪ طلا، ۲۰٪ بیت‌کوین"
+        elif risk_profile == "low":
+            portfolio = "۴۰٪ مسکن، ۴۰٪ طلا، ۲۰٪ بیت‌کوین"
+        else:  # high
+            portfolio = "۳۰٪ مسکن، ۳۰٪ طلا، ۴۰٪ بیت‌کوین"
 
-        response = (
-            f"Based on your input:\n"
-            f"- Savings: {savings}\n"
-            f"- Monthly Expenses: {expenses}\n"
-            f"- Years to Freedom: {years}\n\n"
-            f"You need {total_needed:.2f} in total to achieve financial freedom (assuming a 4% withdrawal rate).\n"
-            f"With your current savings, you still need {additional_needed:.2f}.\n"
-            f"To reach this in {years} years, you should save approximately {monthly_saving_needed:.2f} per month."
-        )
-        await update.message.reply_text(response)
-    except ValueError:
-        await update.message.reply_text("Please enter valid numbers. Example: /calculate 10000 500 5")
+        # خروجی
+        response = f"زمان رسیدن به آزادی مالی: {years} سال\n"
+        response += f"سبد سرمایه‌گذاری: {portfolio}\n"
+        response += f"هدف: {int(target):,} تومان"
 
-# Add handlers to the application
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("input", input_data))
-application.add_handler(CommandHandler("calculate", calculate))
+        context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+    except (IndexError, ValueError):
+        context.bot.send_message(chat_id=update.effective_chat.id, text="لطفاً ورودی رو درست وارد کنید: /Calculate <پس‌انداز> <هزینه> --invest --risk-profile <none/low/high>")
 
-# Create aiohttp app
-app = web.Application()
-
-async def home(request):
-    return web.Response(text="Bot is running!")
-
-async def webhook(request):
-    update = Update.de_json(await request.json(), application.bot)
-    await application.process_update(update)
-    return web.Response(status=200)
-
-# Add routes
-app.router.add_get('/', home)
-app.router.add_post('/webhook', webhook)
-
-async def on_startup(_):
-    # Initialize the application
-    await application.initialize()
-    
-    # Set up Webhook for Render
-    webhook_url = "https://freedomai-2025.onrender.com/webhook" # Your Render URL
-    await application.bot.set_webhook(webhook_url)
-
-if __name__ == "__main__":
-    # Add startup hook
-    app.on_startup.append(on_startup)
-    
-    # Run the app
-    port = int(os.environ.get("PORT", 8080)) # Default port for Render
-    web.run_app(app, host='0.0.0.0', port=port)
+# راه‌اندازی بات
+updater = Updater(TOKEN, use_context=True)
+dp = updater.dispatcher
+dp.add_handler(CommandHandler("start", start))  # اضافه کردن دستور start
+dp.add_handler(CommandHandler("calculate", calculate))
+updater.start_polling()
+updater.idle()
