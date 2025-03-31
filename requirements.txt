@@ -1,7 +1,2 @@
-yfinance
-requests
-tensorflow
-numpy
-scikit-learn
-python-telegram-bot
 flask
+python-telegram-bot
