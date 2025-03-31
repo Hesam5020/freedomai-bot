@@ -75,13 +75,16 @@ def main():
     token = os.getenv("TELEGRAM_TOKEN") # Get token from environment variable
     application = Application.builder().token(token).build()
     
+    # Initialize the application
+    asyncio.run(application.initialize())
+    
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("input", input_data))
     application.add_handler(CommandHandler("input", process_input))
     
     # Set up Webhook for Render
     port = int(os.environ.get("PORT", 8080)) # Default port for Render
-    webhook_url = "https://freedomai-2025.onrender.com/webhook" # Replace with your Render URL
+    webhook_url = "https://freedomai-2025.onrender.com/webhook" # Your Render URL
     asyncio.run(application.bot.set_webhook(webhook_url))
     
     @app.route('/webhook', methods=['POST'])
