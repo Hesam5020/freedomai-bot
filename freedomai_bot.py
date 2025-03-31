@@ -1,18 +1,12 @@
-from flask import Flask, request
+from aiohttp import web
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 import asyncio
 import os
 
-app = Flask(__name__)
-
 # Create the Application instance globally
 token = os.getenv("TELEGRAM_TOKEN")
 application = Application.builder().token(token).build()
-
-@app.route('/')
-def home():
-    return "Bot is running!"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = (
@@ -33,19 +27,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def input_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = (
-        "Please provide the following information (in one message, separated by spaces):\n"
+        "Please provide the following information using /calculate command (in one message, separated by spaces):\n"
         "1. Your current savings (in your currency)\n"
         "2. Your monthly expenses (in your currency)\n"
         "3. Desired time to reach financial freedom (in years)\n\n"
-        "Example: /input 10000 500 5"
+        "Example: /calculate 10000 500 5"
     )
     await update.message.reply_text(message)
 
-async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         args = context.args
         if len(args) != 3:
-            await update.message.reply_text("Please provide exactly 3 values: savings, expenses, and years. Example: /input 10000 500 5")
+            await update.message.reply_text("Please provide exactly 3 values: savings, expenses, and years. Example: /calculate 10000 500 5")
             return
         
         savings = float(args[0])
@@ -73,33 +67,40 @@ async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(response)
     except ValueError:
-        await update.message.reply_text("Please enter valid numbers. Example: /input 10000 500 5")
+        await update.message.reply_text("Please enter valid numbers. Example: /calculate 10000 500 5")
 
 # Add handlers to the application
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("input", input_data))
-application.add_handler(CommandHandler("input", process_input))
+application.add_handler(CommandHandler("calculate", calculate))
 
-@app.route('/webhook', methods=['POST'])
-async def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
+# Create aiohttp app
+app = web.Application()
+
+async def home(request):
+    return web.Response(text="Bot is running!")
+
+async def webhook(request):
+    update = Update.de_json(await request.json(), application.bot)
     await application.process_update(update)
-    return '', 200
+    return web.Response(status=200)
 
-def main():
-    # Get the event loop
-    loop = asyncio.get_event_loop()
-    
+# Add routes
+app.router.add_get('/', home)
+app.router.add_post('/webhook', webhook)
+
+async def on_startup(_):
     # Initialize the application
-    loop.run_until_complete(application.initialize())
+    await application.initialize()
     
     # Set up Webhook for Render
-    port = int(os.environ.get("PORT", 8080)) # Default port for Render
     webhook_url = "https://freedomai-2025.onrender.com/webhook" # Your Render URL
-    loop.run_until_complete(application.bot.set_webhook(webhook_url))
-    
-    # Run the Flask app
-    app.run(host='0.0.0.0', port=port)
+    await application.bot.set_webhook(webhook_url)
 
 if __name__ == "__main__":
-    main()
+    # Add startup hook
+    app.on_startup.append(on_startup)
+    
+    # Run the app
+    port = int(os.environ.get("PORT", 8080)) # Default port for Render
+    web.run_app(app, host='0.0.0.0', port=port)
