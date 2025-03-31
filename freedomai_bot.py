@@ -81,7 +81,7 @@ def main():
     
     # Set up Webhook for Render
     port = int(os.environ.get("PORT", 8080)) # Default port for Render
-    webhook_url = "https://your-bot-name.onrender.com/webhook" # Replace with your Render URL
+    webhook_url = "https://freedomai-2025.onrender.com/webhook" # Replace with your Render URL
     asyncio.run(application.bot.set_webhook(webhook_url))
     
     @app.route('/webhook', methods=['POST'])
