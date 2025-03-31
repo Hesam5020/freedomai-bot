@@ -1,81 +1,112 @@
-import logging
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from threading import Thread
-from flask import Flask
-import financial_calculations as fc  # فرض می‌کنم این ماژول رو داری
+import asyncio
+import os
 
-# تنظیمات لاگ
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-# تنظیم Flask
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "FreedomAI Bot is running!"
+    return "Bot is running!"
 
-# تابع شروع بات
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = update.effective_user
-    await update.message.reply_html(
-        rf"Hi {user.mention_html()}! I'm FreedomAI Bot. Use /calculate to plan your financial freedom."
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = (
+        "Hello! I’m your new bot, ready to assist you!\n\n"
+        "Our goal is to help you achieve financial freedom through smart saving and investing. "
+        "Financial freedom means having enough passive income to cover your living expenses "
+        "without relying on active work, giving you the freedom to live life on your terms. "
+        "Suggestions are provided based on the current state of gold, real estate, stock markets, "
+        "cryptocurrency, inflation rates of various countries, and future predictions for these markets.\n\n"
+        "Disclaimer: Please note that I am not a financial advisor. "
+        "The information and calculations provided by this bot are for general guidance only "
+        "and should not be considered professional financial advice. "
+        "For personalized and accurate financial decisions, I strongly recommend consulting "
+        "with a qualified financial advisor to ensure your specific needs and circumstances are addressed.\n\n"
+        "To get started, please use /input to provide your details."
     )
+    await update.message.reply_text(message)
 
-# تابع محاسبه
-async def calculate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def input_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = (
+        "Please provide the following information (in one message, separated by spaces):\n"
+        "1. Your current savings\n"
+        "2. Your monthly expenses\n"
+        "3. Desired time to reach financial freedom (in years)\n"
+        "4. Your currency (e.g., USD, EUR, IRR)\n"
+        "5. Expected annual return on investment (ROI) in % (e.g., 5 for 5%)\n"
+        "6. Annual inflation rate in % (e.g., 3 for 3%)\n"
+        "7. Your current monthly income\n\n"
+        "Example: /input 10000 500 5 USD 5 3 2000"
+    )
+    await update.message.reply_text(message)
+
+async def process_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # گرفتن آرگومان‌ها از دستور کاربر
         args = context.args
         if len(args) != 7:
-            await update.message.reply_text(
-                "Please provide all required inputs in this format:\n"
-                "/calculate <savings> <expenses> <country> <currency> <risk_tolerance> <age> <years>\n"
-                "Example: /calculate 150000000 150000000 Iran IRR moderate 54 10"
-            )
+            await update.message.reply_text("Please provide exactly 7 values: savings, expenses, years, currency, ROI, inflation, income.\nExample: /input 10000 500 5 USD 5 3 2000")
             return
-
-        # تبدیل آرگومان‌ها به متغیرها
+        
         savings = float(args[0])
         expenses = float(args[1])
-        country = args[2]
-        currency = args[3]
-        risk_tolerance = args[4].lower()
-        age = int(args[5])
-        years = int(args[6])
+        years = float(args[2])
+        currency = args[3].upper()
+        roi = float(args[4]) / 100 # Convert percentage to decimal
+        inflation = float(args[5]) / 100 # Convert percentage to decimal
+        income = float(args[6])
 
-        # فراخوانی تابع محاسبه از ماژول financial_calculations
-        result = fc.calculate_financial_freedom(savings, expenses, country, currency, risk_tolerance, age, years)
+        if savings < 0 or expenses < 0 or years <= 0 or roi <= 0 or inflation < 0 or income < 0:
+            await update.message.reply_text("Values must be positive (savings, expenses, inflation, and income can be 0, but years and ROI must be greater than 0).")
+            return
 
-        # ارسال نتیجه به کاربر
-        await update.message.reply_text(result)
+        # Adjust expenses for inflation over the years
+        adjusted_expenses = expenses * ((1 + inflation) ** years)
+        annual_expenses = adjusted_expenses * 12
+        total_needed = annual_expenses / roi # Total needed based on ROI
+        additional_needed = total_needed - savings
+        monthly_saving_needed = additional_needed / (years * 12)
+        savings_percentage = (monthly_saving_needed / income) * 100 if income > 0 else float('inf')
 
-    except (ValueError, IndexError) as e:
-        await update.message.reply_text(f"Error: {str(e)}. Please check your inputs and try again.")
-    except Exception as e:
-        await update.message.reply_text(f"An unexpected error occurred: {str(e)}")
+        response = (
+            f"Based on your input:\n"
+            f"- Savings: {savings:.2f} {currency}\n"
+            f"- Monthly Expenses: {expenses:.2f} {currency}\n"
+            f"- Years to Freedom: {years}\n"
+            f"- Currency: {currency}\n"
+            f"- Expected ROI: {roi*100:.1f}%\n"
+            f"- Inflation Rate: {inflation*100:.1f}%\n"
+            f"- Monthly Income: {income:.2f} {currency}\n\n"
+            f"Adjusted for {inflation*100:.1f}% annual inflation, your expenses in {years} years will be {adjusted_expenses:.2f} {currency} per month.\n"
+            f"You need {total_needed:.2f} {currency} in total to achieve financial freedom (based on {roi*100:.1f}% ROI).\n"
+            f"With your current savings, you still need {additional_needed:.2f} {currency}.\n"
+            f"To reach this in {years} years, you should save approximately {monthly_saving_needed:.2f} {currency} per month.\n"
+            f"This is {savings_percentage:.1f}% of your current income."
+        )
+        await update.message.reply_text(response)
+    except ValueError:
+        await update.message.reply_text("Please enter valid numbers for all values except currency.\nExample: /input 10000 500 5 USD 5 3 2000")
 
-# تابع اصلی برای اجرای بات
 def main():
-    # توکن بات تلگرام (اینو با توکن خودت جایگزین کن)
-    token = "7771779407:AAGI84IGAYPMfTvln-HXESafm-U2ZCKCy5I"  # توکنی که از BotFather گرفتی رو اینجا بذار
-
-    # ساخت اپلیکیشن تلگرام
+    token = os.getenv("TELEGRAM_TOKEN") # Get token from environment variable
     application = Application.builder().token(token).build()
-
-    # اضافه کردن هندلرها
+    
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("calculate", calculate))
+    application.add_handler(CommandHandler("input", input_data))
+    application.add_handler(CommandHandler("input", process_input))
+    
+    # Set up Webhook
+    port = int(os.environ.get("PORT", 5000)) # Default Heroku port
+    webhook_url = f"https://{os.environ['HEROKU_APP_NAME']}.herokuapp.com/webhook"
+    asyncio.run(application.bot.set_webhook(webhook_url))
+    
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        update = Update.de_json(request.get_json(force=True), application.bot)
+        asyncio.run(application.process_update(update))
+        return '', 200
+    
+    app.run(host='0.0.0.0', port=port)
 
-    # اجرای بات با polling
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-    # اجرای Flask تو یه thread جدا (برای Render)
-    Thread(target=lambda: app.run(host='0.0.0.0', port=8080)).start()
-
-# اجرای برنامه
 if __name__ == "__main__":
     main()
